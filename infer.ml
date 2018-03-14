@@ -52,17 +52,22 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
     | Div(e1, e2) ->
             (match ((typeof e1 n tenv), (typeof e2 n tenv)) with
             | (OK(_, (subst1, _, te1)), OK(_, (subst2, _, te2))) ->
+                begin
+                    (* Printf.printf "te1: %s\n" (string_of_texpr te1); *)
                     let subst_lower = (join [subst1; subst2])
                     in (match mgu[(te1, IntType) ; (te2, IntType)] with
                         | UOk subst ->
                                 begin
+                                    (* Printf.printf "te1: %s\n" (string_of_texpr te1); *)
+                                    (* Printf.printf "te2: %s\n" (string_of_texpr te2); *)
+                                    (* Printf.printf "Op: %s\n" (string_of_subs subst_lower); *)
                                     apply_to_env subst subst_lower;
                                     OK(!n, (subst_lower, e, IntType))
                                 end
                         | UError(te1, te2) -> report_not_unifiable te1 te2)
+                end
             | (Error error_message, _)
-            | (_, Error error_message) -> Error(error_message)
-            | (Error err1, Error err2) -> Error(err1 ^ " " ^ err2))
+            | (_, Error error_message) -> Error(error_message))
 
     | ITE(epred, e1, e2) ->
             (match typeof epred n tenv with
@@ -79,8 +84,7 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                                         end
                                 | UError(te1, te2) -> report_not_unifiable te1 te2)
                     | (Error error_message, _)
-                    | (_, Error error_message) -> Error(error_message)
-                    | (Error err1, Error err2) -> Error(err1 ^ " " ^ err2))
+                    | (_, Error error_message) -> Error(error_message))
             | Error em -> Error(em))
 
     | Let(x, e1, e2) ->
@@ -100,16 +104,38 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                     end
             | Error em -> Error em)
 
-    (* | App(e1, e2) -> *)
+    | App(e1, e2) ->
+            (match (typeof e1 n tenv) with
+            | OK(_, (subst1, _, te1)) ->
+                    (match (typeof e2 n tenv) with
+                    | OK(_, (subst2, _, te2)) ->
+                            begin 
+                                n := !n + 1;
+                                let subst_lower = (join [subst1; subst2])
+                                and return_type = VarType(string_of_int !n)
+                                in (match (mgu [(te1, FuncType(te2, return_type)) ]) with
+                                    | UOk subst ->
+                                            begin
+                                                apply_to_env subst subst_lower;
+                                    (* Printf.printf "App te1: %s\n" (string_of_texpr te1); *)
+                                    (* Printf.printf "app te2: %s\n" (string_of_texpr te2); *)
+                                    (* Printf.printf "app Op: %s\n" (string_of_subs subst_lower); *)
+                                                (* TODO *)
+                                                OK(!n, (subst_lower, e, return_type))
+                                            end
+                                    | UError (te1, te2) -> report_not_unifiable te1 te2)
+                            end
+                    | Error em -> Error (em))
+            | Error em -> Error(em))
 
-   | _ -> failwith "typeof: undefined"
+
+    | _ -> failwith "typeof: undefined"
 
 
 let string_of_typing_judgement (tj: typing_judgement) =
     match tj with
     | subst, expr, texpr ->
             (string_of_expr expr) ^ ": " ^ (string_of_texpr texpr) ^ ", " ^ (string_of_subs subst)
-    | _ -> failwith "Infer.string_of_typing_judgement: incorrect typing_judgement"
 
 let infer_type (AProg e) =
     match typeof e (ref 0) (create ()) with

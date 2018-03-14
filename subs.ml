@@ -14,7 +14,7 @@ let remove (subst: subst) (tvar: string): unit =
 let lookup (subst: subst) (tvar: string): Ast.texpr option =
     Hashtbl.find_opt subst tvar
 
-let apply_to_texpr (subst: subst) (texpr: texpr): texpr =
+let rec apply_to_texpr (subst: subst) (texpr: texpr): texpr =
     match texpr with
     | IntType -> IntType
     | BoolType -> BoolType
@@ -23,6 +23,8 @@ let apply_to_texpr (subst: subst) (texpr: texpr): texpr =
             match looked_type with
             | Some t -> t
             | None -> texpr)
+    | FuncType(t_var, t_body) ->
+        FuncType(apply_to_texpr subst t_var, apply_to_texpr subst t_body)
     | _ -> failwith "Subs.apply_to_texpr not implemented"
 
 let apply_to_expr (subst: subst) (expr: expr): expr =
@@ -30,12 +32,18 @@ let apply_to_expr (subst: subst) (expr: expr): expr =
     | _ -> failwith "Subs.apply_to_expr not implemented"
 
 let apply_to_env (subst1: subst) (subst2: subst): unit =
-    Hashtbl.iter (fun (key1: string) (value1: texpr) -> (Hashtbl.filter_map_inplace (fun (key2: string) (value2: texpr) -> if key1 == key2 then Some(value1) else Some(value2)) subst2)) subst1
+    Hashtbl.iter
+    (fun (key1: string) (value1: texpr) ->
+        (Hashtbl.filter_map_inplace (fun (key2: string) (value2: texpr) ->
+            if key1 == key2
+            then Some(value1)
+            else Some(apply_to_texpr subst1 value2)) subst2))
+    subst1
 
 let string_of_subs (subst: subst): string =
     "[" ^
     (Hashtbl.fold
-        (fun (key: string) (value: texpr) (l: string) -> ("[ " ^ key ^ ", " ^ (string_of_texpr value) ^ " ]" ^ l))
+        (fun (key: string) (value: texpr) (l: string) -> ("[ " ^ key ^ ": " ^ (string_of_texpr value) ^ " ]" ^ l))
         subst
         "")
     ^ "]"
@@ -55,7 +63,6 @@ let rec join (substs: subst list): subst =
                                 | _ -> ()) h;
                 subst_back
             end
-    | _ -> failwith "Subs.join: not implemented"
 
 
 
