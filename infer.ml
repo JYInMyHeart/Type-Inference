@@ -10,22 +10,31 @@ type typing_judgement = subst*expr*texpr
 let report_not_unifiable te1 te2: (int * typing_judgement) error =
     Error("Not unifiable: " ^ (string_of_texpr te1) ^ " and " ^ (string_of_texpr te2))
 
-let rec typeof (e: expr) (n: int ref): (int*typing_judgement) error =
+let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) error =
     match e with
     | Int _ ->
             OK(!n, ((create ()), e, IntType))
     | Var x ->
+            (* TODO: if x exists in tenv, return existed type *)
             let subst = create ()
-            in begin
-                n := !n + 1;
-                (* extend subst x (VarType (string_of_int !n)); *)
-                (* OK(!n, (subst, e, VarType (string_of_int !n))) *)
-                extend subst x (VarType x);
-                OK(!n, (subst, e, VarType x))
-            end
+            in (match lookup tenv x with
+                | Some tx ->
+                        begin
+                            extend subst x tx;
+                            OK(!n, (subst, e, tx))
+                        end
+                | None ->
+                        begin
+                            n := !n + 1;
+                            (* extend subst x (VarType (string_of_int !n)); *)
+                            (* OK(!n, (subst, e, VarType (string_of_int !n))) *)
+                            extend subst x (VarType x);
+                            OK(!n, (subst, e, VarType x))
+                        end)
+    | Unit -> OK(!n, ((create ()), e, UnitType))
 
     | IsZero e0 ->
-            (match typeof e0 n with
+            (match typeof e0 n tenv with
                 | OK(_, (subst_lower, _, te)) ->
                         ( match mgu [te, IntType] with
                             (* TODO: apply substitution to expression *)
@@ -41,7 +50,7 @@ let rec typeof (e: expr) (n: int ref): (int*typing_judgement) error =
     | Sub(e1, e2)
     | Mul(e1, e2)
     | Div(e1, e2) ->
-            (match ((typeof e1 n), (typeof e2 n)) with
+            (match ((typeof e1 n tenv), (typeof e2 n tenv)) with
             | (OK(_, (subst1, _, te1)), OK(_, (subst2, _, te2))) ->
                     let subst_lower = (join [subst1; subst2])
                     in (match mgu[(te1, IntType) ; (te2, IntType)] with
@@ -56,9 +65,9 @@ let rec typeof (e: expr) (n: int ref): (int*typing_judgement) error =
             | (Error err1, Error err2) -> Error(err1 ^ " " ^ err2))
 
     | ITE(epred, e1, e2) ->
-            (match typeof epred n with
+            (match typeof epred n tenv with
             | OK(_, (subst_pred, _, tepred)) ->
-                    (match ((typeof e1 n), (typeof e2 n)) with
+                    (match ((typeof e1 n tenv), (typeof e2 n tenv)) with
                     | (OK(_, (subst1, _, te1)), OK(_, (subst2, _, te2))) ->
                             let subst_lower = (join [subst_pred; subst1; subst2])
                             in (match mgu[(tepred, BoolType) ; (te1, te2)] with
@@ -74,18 +83,26 @@ let rec typeof (e: expr) (n: int ref): (int*typing_judgement) error =
                     | (Error err1, Error err2) -> Error(err1 ^ " " ^ err2))
             | Error em -> Error(em))
 
+    | Let(x, e1, e2) ->
+            (match (typeof e1 n tenv) with
+            | OK(_, (subst1, _, te1)) ->
+                    let tenv_new = tenv
+                    in begin
+                        extend tenv_new x te1;
+                        (match typeof e2 n tenv_new with
+                        | OK(_, (subst2, _, te2)) ->
+                                begin
+                                    remove subst1 x;
+                                    remove subst2 x;
+                                    OK(!n, (join [subst1; subst2], e, te2))
+                                end
+                        | Error em -> Error(em))
+                    end
+            | Error em -> Error em)
 
     (* | App(e1, e2) -> *)
 
-    (* | Let(x, e1, e2) -> *)
-    (*         (match (typeof e1 n) with *)
-    (*         | (OK (_, (subst1, e1', te1)) -> *)
-    (*                 (match mgu[VarType x, te1] with *)
-    (*                 | UOk subst_mug1 -> *)
-    (*                         (match (typeof (apply_to_expr subst e2)) with *)
-    (*                         | OK (_, (subst2, e2', te2)) -> *)
-    (*                                 | UOk subst_mug2 ->  *)
-    | _ -> failwith "typeof: undefined"
+   | _ -> failwith "typeof: undefined"
 
 
 let string_of_typing_judgement (tj: typing_judgement) =
@@ -95,7 +112,7 @@ let string_of_typing_judgement (tj: typing_judgement) =
     | _ -> failwith "Infer.string_of_typing_judgement: incorrect typing_judgement"
 
 let infer_type (AProg e) =
-    match typeof e (ref 0) with
+    match typeof e (ref 0) (create ()) with
   | OK (_, tj) -> string_of_typing_judgement tj
   | Error s -> "Error! "^ s
 

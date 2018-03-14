@@ -4,7 +4,7 @@ open Subs
 
 type  unif_result = UOk of Subs.subst | UError of texpr * texpr
 
-let belong_to_free_var_set (x: string) (subst: subst): bool =
+let occur(x: string) (subst: subst): bool =
     let free_vars = (domain subst)
     in match List.find_opt (fun free_var -> free_var == x) free_vars with
        | Some _ -> true
@@ -26,6 +26,7 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
                 (*                  UOk (subst) *)
                 (*              end *)
                 (*      | UError (te1, te2) -> UError(te1, te2)) *)
+                (* TODO: unify two variables *)
                 else UError(VarType x, VarType y)
         | (VarType x, te) ->
                 let r = mgu(t)
