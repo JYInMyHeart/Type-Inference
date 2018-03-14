@@ -18,6 +18,7 @@ let rec apply_to_texpr (subst: subst) (texpr: texpr): texpr =
     match texpr with
     | IntType -> IntType
     | BoolType -> BoolType
+    | UnitType -> UnitType
     | VarType id ->
        (let looked_type = lookup subst id in
             match looked_type with
@@ -25,6 +26,7 @@ let rec apply_to_texpr (subst: subst) (texpr: texpr): texpr =
             | None -> texpr)
     | FuncType(t_var, t_body) ->
         FuncType(apply_to_texpr subst t_var, apply_to_texpr subst t_body)
+    | RefType(_) (* TODO *)
     | _ -> failwith "Subs.apply_to_texpr not implemented"
 
 let apply_to_expr (subst: subst) (expr: expr): expr =

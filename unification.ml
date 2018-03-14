@@ -15,9 +15,9 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
     | [] -> UOk (create ())
     | h::t ->
        (match h with
-        | (BoolType, BoolType)
-        | (IntType, IntType) -> mgu(t)
-        | (VarType x, VarType y) ->
+       | (BoolType, BoolType)
+       | (IntType, IntType) -> mgu(t)
+       | (VarType x, VarType y) ->
                 if x == y then (mgu t) (* trivial pair elimination *)
                 (* else (match (mgu t) with *)
                 (*      | UOk subst -> *)
@@ -28,7 +28,7 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
                 (*      | UError (te1, te2) -> UError(te1, te2)) *)
                 (* TODO: unify two variables *)
                 else UError(VarType x, VarType y)
-        | (VarType x, te) ->
+       | (VarType x, te) ->
                 let r = mgu(t)
                 in (match r with
                     | UOk subst ->
@@ -36,5 +36,7 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
                                 extend subst x te;
                                 UOk(subst)
                             end
-                    | UError (_, _) -> r))
+                    | UError (_, _) -> r)
+      | (RefType x, RefType y) ->
+            mgu ((x, y)::t))
     | _ -> failwith "Unification.mgu not implemented"
