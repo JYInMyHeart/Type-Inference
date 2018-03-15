@@ -7,8 +7,8 @@ type 'a error = OK of 'a | Error of string
 
 type typing_judgement = subst*expr*texpr
 
-let report_not_unifiable te1 te2: (int * typing_judgement) error =
-    Error("Not unifiable: " ^ (string_of_texpr te1) ^ " and " ^ (string_of_texpr te2))
+let report_not_unifiable te1 te2 e: (int * typing_judgement) error =
+    Error("Not unifiable: " ^ (string_of_texpr te1) ^ " and " ^ (string_of_texpr te2) ^ " in " ^ (string_of_expr e))
 
 let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) error =
     match e with
@@ -26,10 +26,10 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
             | None ->
                 begin
                     n := !n + 1;
-                    (* extend subst x (VarType (string_of_int !n)); *)
-                    (* OK(!n, (subst, e, VarType (string_of_int !n))) *)
-                    extend subst x (VarType x);
-                    OK(!n, (subst, e, VarType x))
+                    extend subst x (VarType (string_of_int !n));
+                    OK(!n, (subst, e, VarType (string_of_int !n)))
+                    (* extend subst x (VarType x); *)
+                    (* OK(!n, (subst, e, VarType x)) *)
                 end)
     | Unit -> OK(!n, ((create ()), e, UnitType))
 
@@ -43,7 +43,7 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                             apply_to_env subst subst_lower;
                             OK(!n, (subst_lower, e, BoolType))
                         end
-                    | UError (te1, te2) -> report_not_unifiable te1 te2)
+                    | UError (te1, te2) -> report_not_unifiable te1 te2 e)
             | Error error_message -> Error(error_message))
 
     | Add(e1, e2)
@@ -64,7 +64,7 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                             apply_to_env subst subst_lower;
                             OK(!n, (subst_lower, e, IntType))
                         end
-                    | UError(te1, te2) -> report_not_unifiable te1 te2)
+                    | UError(te1, te2) -> report_not_unifiable te1 te2 e)
             end
         | (Error error_message, _)
         | (_, Error error_message) -> Error(error_message))
@@ -82,7 +82,7 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                             (* TODO: apply subst to texpr *)
                             OK(!n, (subst_lower, e, te1))
                         end
-                    | UError(te1, te2) -> report_not_unifiable te1 te2)
+                    | UError(te1, te2) -> report_not_unifiable te1 te2 e)
             | (Error error_message, _)
             | (_, Error error_message) -> Error(error_message))
         | Error em -> Error(em))
@@ -118,13 +118,20 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                         | UOk subst ->
                             begin
                                 apply_to_env subst subst_lower;
-                    (* Printf.printf "App te1: %s\n" (string_of_texpr te1); *)
-                    (* Printf.printf "app te2: %s\n" (string_of_texpr te2); *)
-                    (* Printf.printf "app Op: %s\n" (string_of_subs subst_lower); *)
+                                (* Printf.printf "App te1: %s\n" (string_of_texpr te1); *)
+                                (* Printf.printf "app te2: %s\n" (string_of_texpr te2); *)
+                                (* Printf.printf "app Op: %s\n" (string_of_subs subst_lower); *)
                                 (* TODO *)
-                                OK(!n, (subst_lower, e, t_return))
+                                OK(!n, (subst_lower, e, apply_to_texpr subst t_return))
                             end
-                        | UError (te1, te2) -> report_not_unifiable te1 te2)
+                        | UError (te1, te2) ->
+                            begin
+                                (* Printf.printf "App te1: %s\n" (string_of_texpr te1); *)
+                                (* Printf.printf "app te2: %s\n" (string_of_texpr te2); *)
+                                (* Printf.printf "app Op: %s\n" (string_of_subs subst_lower); *)
+                                report_not_unifiable te1 te2 e
+                            end
+                        )
                 end
             | Error em -> Error (em))
         | Error em -> Error(em))
@@ -138,7 +145,7 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
     | Proc(var_name, t_var, e_body) ->
         let tenv_new = tenv
         in begin
-            n := !n + 1;
+            (* n := !n + 1; *)
             extend tenv_new var_name t_var;
             match typeof e_body n tenv with
             | OK(_, (subst, _, t_body)) ->
@@ -176,7 +183,7 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                         apply_to_env subst subst_lower;
                         OK(!n, (subst_lower, e, UnitType))
                     end
-                | UError (te1, te2) -> report_not_unifiable te1 te2)
+                | UError (te1, te2) -> report_not_unifiable te1 te2 e)
             | Error em -> Error em)
         | Error em -> Error em)
 
@@ -188,15 +195,35 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
             (match typeof eh n tenv with
             | OK(_, (subst_h, _, teh)) ->
                 begin
-                    (* apply_to_env subst_h tenv; *)
-                    (* Printf.printf "susbt_h = %s\n" (string_of_subs subst_h); *)
-                    (* Printf.printf "new tenv = %s\n" (string_of_subs tenv); *)
                     (match typeof (BeginEnd(ets)) n (join [subst_h; tenv]) with
                     | OK(_, (subst_ts, _, tets)) ->
                             OK(!n, (join [subst_h; subst_ts], e, tets))
                     | Error em -> Error em)
                 end
             | Error em -> Error em))
+
+    | LetrecUntyped(proc_name, var_name, e_proc_body, e_body) ->
+        begin
+            n := !n + 2;
+            let te_var = VarType (string_of_int (!n - 1))
+            and te_res = VarType (string_of_int !n)
+            and tenv_proc = tenv
+            in begin
+                (* extend tenv_new var_name t_var; *)
+                extend tenv_proc proc_name (FuncType(te_var, te_res));
+                (match typeof (Proc(var_name, te_var, e_proc_body)) n tenv_proc with
+                | OK(_, (subst_proc, _, te_proc)) ->
+                        let tenv_body = tenv
+                        in begin
+                            extend tenv proc_name te_proc;
+                            (match typeof e_body n tenv_body with
+                            | OK(_, (subst, _, te_body)) ->
+                                OK(!n, (subst, e, te_body))
+                            | Error em -> Error em)
+                        end
+                | Error em -> Error em)
+            end
+        end
 
     | _ -> failwith "typeof: undefined"
 

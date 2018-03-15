@@ -26,8 +26,8 @@ let rec apply_to_texpr (subst: subst) (texpr: texpr): texpr =
             | None -> texpr)
     | FuncType(t_var, t_body) ->
         FuncType(apply_to_texpr subst t_var, apply_to_texpr subst t_body)
-    | RefType(_) (* TODO *)
-    | _ -> failwith "Subs.apply_to_texpr not implemented"
+    | RefType(t_ref) ->
+        RefType(apply_to_texpr subst t_ref)
 
 let apply_to_expr (subst: subst) (expr: expr): expr =
     match expr with
@@ -45,7 +45,7 @@ let apply_to_env (subst1: subst) (subst2: subst): unit =
 let string_of_subs (subst: subst): string =
     "[" ^
     (Hashtbl.fold
-        (fun (key: string) (value: texpr) (l: string) -> ("[ " ^ key ^ ": " ^ (string_of_texpr value) ^ " ]" ^ l))
+        (fun (key: string) (value: texpr) (l: string) -> ("[ " ^ key ^ " : " ^ (string_of_texpr value) ^ " ]" ^ l))
         subst
         "")
     ^ "]"

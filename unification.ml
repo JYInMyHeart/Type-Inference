@@ -14,29 +14,55 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
     match texprs with
     | [] -> UOk (create ())
     | h::t ->
-       (match h with
-       | (BoolType, BoolType)
-       | (IntType, IntType) -> mgu(t)
-       | (VarType x, VarType y) ->
-                if x == y then (mgu t) (* trivial pair elimination *)
-                (* else (match (mgu t) with *)
-                (*      | UOk subst -> *)
-                (*              begin *)
-                (*                  extend subst x (VarType y); *)
-                (*                  UOk (subst) *)
-                (*              end *)
-                (*      | UError (te1, te2) -> UError(te1, te2)) *)
-                (* TODO: unify two variables *)
-                else UError(VarType x, VarType y)
-       | (VarType x, te) ->
-                let r = mgu(t)
-                in (match r with
-                    | UOk subst ->
-                            begin
-                                extend subst x te;
-                                UOk(subst)
-                            end
-                    | UError (_, _) -> r)
-      | (RefType x, RefType y) ->
-            mgu ((x, y)::t))
-    | _ -> failwith "Unification.mgu not implemented"
+        (match h with
+        | (BoolType, BoolType)
+        | (IntType, IntType) -> mgu(t)
+        | (VarType x, VarType y) ->
+            (match mgu t with
+            | UOk subst ->
+                if x == y
+                then UOk(subst)
+                else begin
+                    extend subst x (VarType y);
+                    UOk(subst)
+                end
+            | UError (te1, te2) -> UError (te1, te2))
+        | (VarType x, te) ->
+            (match te with
+            | VarType y when x == y-> mgu t
+            | _ ->
+                (match mgu t with
+                | UOk subst ->
+                    begin
+                        extend subst x te;
+                        UOk subst
+                    end
+                | UError(te1, te2) -> UError(te1, te2)))
+
+        | (te, VarType x) ->
+            (match mgu t with
+            | UOk subst ->
+                begin
+                    (* Printf.printf "te = %s\n" (string_of_texpr te); *)
+                    (* Printf.printf "x  = %s\n" x; *)
+                    (* Printf.printf "subst = %s\n" (string_of_subs subst); *)
+                    extend subst x te;
+                    (* Printf.printf "subst = %s\n" (string_of_subs subst); *)
+                    UOk subst
+                end
+            | UError(te1, te2) -> UError(te1, te2))
+
+        | (RefType x, RefType y) ->
+            mgu ((x, y)::t)
+
+        | (FuncType(var1, body1), FuncType(var2, body2)) ->
+            (match mgu[var1, var2] with
+            | UOk subst_var ->
+                (match mgu[body1, body2] with
+                | UOk subst_body ->
+                    (match mgu t with
+                    | UOk subst -> UOk(join [subst_var; subst_body; subst])
+                    | UError(te1, te2) -> UError(te1, te2))
+                | UError(te1, te2) -> UError(te1, te2))
+            | UError(te1, te2) -> UError(te1, te2))
+        | (te1, te2) -> UError(te1, te2))
