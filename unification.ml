@@ -4,11 +4,10 @@ open Subs
 
 type  unif_result = UOk of Subs.subst | UError of texpr * texpr
 
-let occur(x: string) (subst: subst): bool =
-    let free_vars = (domain subst)
-    in match List.find_opt (fun free_var -> free_var == x) free_vars with
-       | Some _ -> true
-       | None -> false
+let no_occur x y =
+    match SetStr.find_opt x (fv_of_type y) with
+    | Some _ -> false
+    | None -> true
 
 let rec mgu (texprs: (texpr * texpr) list) : unif_result =
     match texprs with
@@ -28,6 +27,8 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
                 end
             | UError (te1, te2) -> UError (te1, te2))
         | (VarType x, te) ->
+            if (no_occur x te)
+            then
             (match te with
             | VarType y when x == y-> mgu t
             | _ ->
@@ -38,19 +39,23 @@ let rec mgu (texprs: (texpr * texpr) list) : unif_result =
                         UOk subst
                     end
                 | UError(te1, te2) -> UError(te1, te2)))
+            else UError(VarType x, te)
 
         | (te, VarType x) ->
-            (match mgu t with
-            | UOk subst ->
-                begin
-                    (* Printf.printf "te = %s\n" (string_of_texpr te); *)
-                    (* Printf.printf "x  = %s\n" x; *)
-                    (* Printf.printf "subst = %s\n" (string_of_subs subst); *)
-                    extend subst x te;
-                    (* Printf.printf "subst = %s\n" (string_of_subs subst); *)
-                    UOk subst
-                end
-            | UError(te1, te2) -> UError(te1, te2))
+            if (no_occur x te)
+            then
+                (match mgu t with
+                | UOk subst ->
+                    begin
+                        (* Printf.printf "te = %s\n" (string_of_texpr te); *)
+                        (* Printf.printf "x  = %s\n" x; *)
+                        (* Printf.printf "subst = %s\n" (string_of_subs subst); *)
+                        extend subst x te;
+                        (* Printf.printf "subst = %s\n" (string_of_subs subst); *)
+                        UOk subst
+                    end
+                | UError(te1, te2) -> UError(te1, te2))
+            else UError(te, VarType x)
 
         | (RefType x, RefType y) ->
             mgu ((x, y)::t)

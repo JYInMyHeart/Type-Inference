@@ -108,12 +108,14 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
     | App(e1, e2) ->
         (match (typeof e1 n tenv) with
         | OK(_, (subst1, _, te1)) ->
-            (match (typeof e2 n tenv) with
+            (match (typeof e2 n subst1) with
             | OK(_, (subst2, _, te2)) ->
                 begin
                     n := !n + 1;
                     let subst_lower = (join [subst1; subst2])
-                    and t_return = VarType(string_of_int !n)
+                    and t_return = (match te1 with
+                                    | FuncType (_, t_return) -> t_return
+                                    | _ -> VarType(string_of_int !n))
                     in (match (mgu [(te1, FuncType(te2, t_return)) ]) with
                         | UOk subst ->
                             begin
@@ -121,7 +123,6 @@ let rec typeof (e: expr) (n: int ref) (tenv: subst): (int*typing_judgement) erro
                                 (* Printf.printf "App te1: %s\n" (string_of_texpr te1); *)
                                 (* Printf.printf "app te2: %s\n" (string_of_texpr te2); *)
                                 (* Printf.printf "app Op: %s\n" (string_of_subs subst_lower); *)
-                                (* TODO *)
                                 OK(!n, (subst_lower, e, apply_to_texpr subst t_return))
                             end
                         | UError (te1, te2) ->
