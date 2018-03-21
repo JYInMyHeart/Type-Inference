@@ -29,9 +29,14 @@ let rec apply_to_texpr (subst: subst) (texpr: texpr): texpr =
     | RefType(t_ref) ->
         RefType(apply_to_texpr subst t_ref)
 
-let apply_to_expr (subst: subst) (expr: expr): expr =
+let rec apply_to_expr (subst: subst) (expr: expr): expr =
     match expr with
-    | _ -> failwith "Subs.apply_to_expr not implemented"
+    | Proc(var_name, te_var, e_body) ->
+        let te_var = (match lookup subst var_name with
+                     | Some t -> t
+                     | None -> te_var)
+        in Proc(var_name, te_var, (apply_to_expr subst e_body))
+    | _ -> expr
 
 let apply_to_env (subst1: subst) (subst2: subst): unit =
     Hashtbl.iter
@@ -62,7 +67,11 @@ let rec join (substs: subst list): subst =
                 Hashtbl.iter (fun (key1: string) (value1: texpr) ->
                                 match lookup subst_back key1 with
                                 | None -> extend subst_back key1 value1
-                                | _ -> ()) h;
+                                | Some te ->
+                                    begin
+                                        remove subst_back key1;
+                                        extend subst_back key1 (apply_to_texpr h te)
+                                    end) h;
                 subst_back
             end
 

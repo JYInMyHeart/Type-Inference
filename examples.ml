@@ -9,16 +9,16 @@ let expr = function
   | 7 -> "(f 0)+1"
   | 8 -> "(0 f)"
   | 9 -> "((f 0) 1)"
-  | 10 -> "f (0 2)" (* TODO: parser error *)
+  | 10 -> "f (0 2)"
   | 11 -> "(((f x) y) z)"
   | 12 -> "(f ((x y) z))"
-  | 13 -> "(f ((zero?(x) y) z))" (* TODO: not uni: bool and (VTy -> VT4), but correct*)
+  | 13 -> "(f ((zero?(x) y) z))"
   | 14 -> "(f zero?(x))"
   | 15 -> "(x x)"
   | 16 -> "proc(x) { x }"
   | 17 -> "(proc (x) { x } y)"
-  | 18 -> "proc (s) { proc (x) { proc (y) { ((s x) y) }}}"
-  | 19 -> "proc(s) { proc (x) { proc (y) { (s (x y)) }}}"
+  | 18 -> "proc (s) { proc (x) { proc (y) { ((s x) y) }}}" (* TODO: s, x *)
+  | 19 -> "proc(s) { proc (x) { proc (y) { (s (x y)) }}}" (* TODO: s, x *)
   | 20 -> "
 let x = 7
 in let y = 2
@@ -43,5 +43,6 @@ in (fact 7)"
 letrec infiniteLoop (x) = (infiniteLoop (x+1))
 in let f = proc (z) { 11 }
 in (f (infiniteLoop 0))"
+  (* | 25 -> "proc (f) {proc(x) {(f (f x))}}" *)
   | n -> failwith @@ "Expression " ^string_of_int  n ^ " is not defined"
 
